@@ -1,13 +1,13 @@
-from re import I
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI, OpenAIError
-from dotenv import load_dotenv
+from openai import OpenAIError
 from langchain_openai import ChatOpenAI
 from models import Message
 import uvicorn
-import os
+
+from services.db.base import DBClient
+from services.db.sqlite import SqliteDB
+from services.llm import call_llm
 
 app = FastAPI()
 
@@ -20,61 +20,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-load_dotenv()
-
-openai_key = os.getenv("OPENAI_API_KEY")
-
-messages: list[Message]  = []
-
 
 @app.post("/chat")
 def chat(user_msg: Message):
     try:
-        #save user input to db
-        messages.append(
-            Message(id=user_msg.id, role=user_msg.role, content=user_msg.content)
-        )
+        db_client: DBClient = SqliteDB()
+        msgs: list[Message] = db_client.get_chat_messages()
 
-        # get msgs from db
-        llm_input = []
+        llm_response: Message = call_llm(msgs,user_msg)
 
-        for msgs in messages:
-            llm_input.append({
-                "role": msgs.role, "content": msgs.content
-            })
+        db_client.save_chat_messages(llm_response,user_msg)
 
-        # send all msgs to llm
-        client = OpenAI(api_key=openai_key)
-        response = client.responses.create(
-            model="gpt-5-nano",
-            input=llm_input
-        )
-
-        # save ai msg to db
-        messages.append(
-            Message(id=response.id, role="assistant", content=response.output_text)
-        )
-
-        print("list of messages",messages)
-        return {"message": response.output_text}
+        return {"message": llm_response.content}
     except OpenAIError as err:
         raise HTTPException(status_code=err.status_code, detail=err.message)
 
-@app.get("/chat-langchain")
-def chat_langchain(req: str):
-    try:
-        client = ChatOpenAI(api_key=openai_key,model="gpt-5.4-nano")
+# @app.get("/chat-langchain")
+# def chat_langchain(req: str):
+#     try:
+#         client = ChatOpenAI(api_key=openai_key,model="gpt-5.4-nano")
 
-        response = client.invoke(req)
+#         response = client.invoke(req)
 
-        return response.content
-    except OpenAIError as err:
-        raise HTTPException(status_code=err.status_code, detail=err.message)
+#         return response.content
+#     except OpenAIError as err:
+#         raise HTTPException(status_code=err.status_code, detail=err.message)
 
 
 def main():
     uvicorn.run(app="main:app", reload=True)
-    
 
 
 if __name__ == "__main__":

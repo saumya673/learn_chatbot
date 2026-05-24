@@ -16,3 +16,7 @@ design.excalidraw
 
 # question file
 req.txt
+
+
+chatbot.db
+*.db
