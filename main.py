@@ -1,13 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAIError
-from langchain_openai import ChatOpenAI
-from models import Message
+from models import Message, PersonDetails
 import uvicorn
 
 from services.db.base import DBClient
 from services.db.sqlite import SqliteDB
-from services.llm import call_llm
+from services.llm_langchain import call_langchain_llm, call_structured_langchain_llm
 
 app = FastAPI()
 
@@ -22,29 +21,33 @@ app.add_middleware(
 
 
 @app.post("/chat")
-def chat(user_msg: Message):
+async def chat(user_msg: Message):
     try:
-        db_client: DBClient = SqliteDB()
-        msgs: list[Message] = db_client.get_chat_messages()
+        with SqliteDB() as db_client:
+            msgs: list[Message] = db_client.get_chat_messages()
 
-        llm_response: Message = call_llm(msgs,user_msg)
+            llm_response: Message = await call_langchain_llm(msgs,user_msg)
 
-        db_client.save_chat_messages(llm_response,user_msg)
+            db_client.save_chat_messages(llm_response,user_msg)
 
         return {"message": llm_response.content}
     except OpenAIError as err:
         raise HTTPException(status_code=err.status_code, detail=err.message)
+    
 
-# @app.get("/chat-langchain")
-# def chat_langchain(req: str):
-#     try:
-#         client = ChatOpenAI(api_key=openai_key,model="gpt-5.4-nano")
+@app.post("/chat-structured")
+async def chat(user_msg: Message) -> PersonDetails:
+    try:
+        my_story = "I had a great day"
+        structured_output = await call_structured_langchain_llm(user_msg)
+        print("llm ka result", structured_output)
 
-#         response = client.invoke(req)
+        result: PersonDetails = PersonDetails(**structured_output.model_dump(), short_story=my_story)
+        
+        return result
+    except OpenAIError as err:
+        raise HTTPException(status_code=err.status_code, detail=err.message)
 
-#         return response.content
-#     except OpenAIError as err:
-#         raise HTTPException(status_code=err.status_code, detail=err.message)
 
 
 def main():

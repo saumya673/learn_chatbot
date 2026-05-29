@@ -8,6 +8,16 @@ class SqliteDB(DBClient):
         self.con = sqlite3.connect("chatbot.db")
         self.cur = self.con.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, role TEXT, content TEXT)")
+        self.con.commit()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.close()
+
+    def close(self):
+        self.con.close()
 
     # get chat messages from db
     def get_chat_messages(self) -> list[Message]:

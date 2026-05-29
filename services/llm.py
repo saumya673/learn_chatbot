@@ -1,4 +1,4 @@
-from models import Message
+from models import Message, PersonDetailsLlm
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
@@ -29,5 +29,19 @@ def call_llm(msgs: list[Message], user_msg: Message) -> Message:
         raise e
     
     return Message(id=response.id, role="assistant", content=response.output_text)
-    
 
+
+def call_structured_llm(user_msg):
+    llm_input = [{
+        "role": user_msg.role,
+        "content": user_msg.content
+    }]
+    response = client.responses.parse(
+        model="gpt-4.1-mini",
+        input=llm_input,
+        text_format=PersonDetailsLlm
+    )
+
+    return response.output_parsed
+
+    

@@ -8,3 +8,13 @@ class Message(BaseModel):
     content: str
 
 
+class PersonDetailsLlm(BaseModel):
+    name: str
+    age: int
+    address: str
+
+class PersonDetails(BaseModel):
+    name: str
+    age: int
+    address: str
+    short_story: str
